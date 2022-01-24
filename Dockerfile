@@ -28,7 +28,6 @@ RUN mkdir /module
 WORKDIR /module
 
 COPY EdgeDetection /module/EdgeDetection
-COPY RunModule.py /module/
 COPY PythonScriptWrapper.py /module/
 COPY PythonScriptWrapper /module/
 COPY bqapi/ /module/bqapi
