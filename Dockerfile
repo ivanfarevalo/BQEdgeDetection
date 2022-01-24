@@ -32,7 +32,7 @@ COPY RunModule.py /module/
 COPY PythonScriptWrapper.py /module/
 COPY PythonScriptWrapper /module/
 COPY bqapi/ /module/bqapi
-
+COPY EdgeDetection.xml /module/EdgeDetection.xml
 
 
 ENV PATH /module:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
