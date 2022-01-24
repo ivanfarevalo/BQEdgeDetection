@@ -29,7 +29,6 @@ WORKDIR /module
 
 COPY EdgeDetection /module/EdgeDetection
 COPY PythonScriptWrapper.py /module/
-COPY PythonScriptWrapper /module/
 COPY bqapi/ /module/bqapi
 COPY EdgeDetection.xml /module/EdgeDetection.xml
 
