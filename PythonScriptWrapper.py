@@ -15,6 +15,7 @@ from bqapi.comm import BQSession
 from bqapi.util import fetch_blob
 
 #from predict import predict_label
+
 from EdgeDetection.prog1 import run_edge_detector
 
 class ScriptError(Exception):
@@ -29,6 +30,21 @@ class PythonScriptWrapper(object):
             xml = fobj.read()
             log.info("Was able to ")
         self.xml_root = etree.fromstring(xml)
+        self.xml_inputs  = []
+        self.xml_outputs = []
+        self.get_xml_data('inputs')
+
+
+    def get_xml_data(self, field):
+        xml_data = []
+        for child in self.xml_root:
+            print(child.tag, child.attrib)
+            # print(child.attrib)
+            if field == 'inputs' and child.attrib['name'] == 'inputs':
+                print(etree.tostring(child, pretty_print=True))
+                logging.info(etree.tostring(child, pretty_print=True))
+
+
 
 
     def preprocess(self, bq):
