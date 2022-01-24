@@ -26,10 +26,11 @@ class ScriptError(Exception):
 
 class PythonScriptWrapper(object):
     def __init__(self):
-        with open('EdgeDetection.xml') as fobj:
-            xml = fobj.read()
-            log.info("Was able to ")
-        self.xml_root = etree.fromstring(xml)
+        # with open('EdgeDetection.xml') as fobj:
+        #     xml = fobj.read()
+        #     log.info("Was able to ")
+        # self.xml_root = etree.fromstring(xml)
+        self.xml_root = etree.parse('EdgeDetection.xml')
         self.xml_inputs  = []
         self.xml_outputs = []
         self.get_xml_data('inputs')
