@@ -18,7 +18,7 @@ from bqapi.util import fetch_blob
 
 # from predict import predict_label
 
-from EdgeDetection.prog1 import run_edge_detector
+from src.BQ_run_module import run_module
 
 
 class ScriptError(Exception):
@@ -49,7 +49,7 @@ class PythonScriptWrapper(object):
 
         return xml_data
 
-    def preprocess(self, bq):
+    def pre_process(self, bq):
 
         log.info('Options: %s' % (self.options))
         """
@@ -75,9 +75,9 @@ class PythonScriptWrapper(object):
         bq = self.bqSession
         try:
             bq.update_mex('Pre-process the images')
-            self.preprocess(bq)
+            self.pre_process(bq)
         except (Exception, ScriptError) as e:
-            log.exception("Exception during preprocess")
+            log.exception("Exception during pre_process")
             bq.fail_mex(msg="Exception during pre-process: %s" % str(e))
 
             return
@@ -86,8 +86,8 @@ class PythonScriptWrapper(object):
         #        heatmap=np.transpose(heatmap, (1, 2, 0))
         #        input_image=np.transpose(input_image, (1, 2, 0))
 
-        edge_image_path = run_edge_detector(os.path.join(os.getcwd(), self.image_name))  # Path to output files
-        log.info("Output image path: %s" % edge_image_path)
+        out_data_path = run_module(os.path.join(os.getcwd(), self.image_name))  # Path to output files
+        log.info("Output image path: %s" % out_data_path)
 
         #        img = nib.Nifti1Image(input_image*heatmap, np.eye(4))  # Save axis for data (just identity)
         #
@@ -100,7 +100,7 @@ class PythonScriptWrapper(object):
         self.bqSession.update_mex('Returning results')
 
         bq.update_mex('Uploading Mask result')
-        self.out_image = self.uploadservice(bq, edge_image_path, data_type='image')
+        self.out_image = self.upload_service(bq, out_data_path, data_type='image')
         #         log.info('Total number of slices:{}.\nNumber of slices predicted as Covid:{}.\nNumber of slices predicted as PNA: {}\nNumber of slices predicted as Normal:{}'.format(z, covid, pna, normal))
 
         #         self.output_resources.append(out_xml)
@@ -136,7 +136,7 @@ class PythonScriptWrapper(object):
         self.mex_parameter_parser(self.bqSession.mex.xmltree)
         self.output_resources = []
 
-    def teardown(self):
+    def tear_down(self):
         """
         Post the results to the mex xml
         """
@@ -206,7 +206,7 @@ class PythonScriptWrapper(object):
 
         return resource
 
-    def uploadservice(self, bq, filename, data_type='image'):
+    def upload_service(self, bq, filename, data_type='image'):
         """
         Upload resource to image_service upon post process
         """
@@ -328,10 +328,10 @@ class PythonScriptWrapper(object):
                 return
             ##
             try:
-                self.teardown()
+                self.tear_down()
             except (Exception, ScriptError) as e:
-                log.exception("Exception during teardown")
-                self.bqSession.fail_mex(msg="Exception during teardown: %s" % str(e))
+                log.exception("Exception during tear_down")
+                self.bqSession.fail_mex(msg="Exception during tear_down: %s" % str(e))
                 return
 
             self.bqSession.close()
