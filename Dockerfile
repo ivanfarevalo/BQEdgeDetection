@@ -27,7 +27,7 @@ RUN pip3 install requests-toolbelt
 RUN mkdir /module
 WORKDIR /module
 
-COPY src /module/EdgeDetection
+COPY src /module/src
 COPY PythonScriptWrapper.py /module/
 COPY bqapi/ /module/bqapi
 COPY EdgeDetection.xml /module/EdgeDetection.xml
