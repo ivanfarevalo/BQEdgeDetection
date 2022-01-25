@@ -122,5 +122,5 @@ if __name__ == '__main__':
     args = vars(ap.parse_args())
     print(args['image'])
 
-    output_picture_zero_crossing_edges0 = main(args['image'])
+    output_picture_zero_crossing_edges0 = run_module(args['image'])
     print(f"Output image saved to: {output_picture_zero_crossing_edges0}")
