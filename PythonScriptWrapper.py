@@ -1,52 +1,53 @@
 import sys
 import io
 from lxml import etree
+import xml.etree.ElementTree as ET
 import optparse
 import logging
 import os
 import numpy as np
+
 # It is importing from source
 
-logging.basicConfig(filename='PythonScript.log', filemode='a', level=logging.DEBUG) 
+logging.basicConfig(filename='PythonScript.log', filemode='a', level=logging.DEBUG)
 log = logging.getLogger('bq.modules')
 
 from bqapi.comm import BQCommError
 from bqapi.comm import BQSession
 from bqapi.util import fetch_blob
 
-#from predict import predict_label
+# from predict import predict_label
 
 from EdgeDetection.prog1 import run_edge_detector
+
 
 class ScriptError(Exception):
     def __init__(self, message):
         self.message = "Script error: %s" % message
+
     def __str__(self):
         return self.message
 
+
 class PythonScriptWrapper(object):
     def __init__(self):
-        # with open('EdgeDetection.xml') as fobj:
-        #     xml = fobj.read()
-        #     log.info("Was able to ")
-        # self.xml_root = etree.fromstring(xml)
-        self.xml_root = etree.parse('EdgeDetection.xml')
-        self.xml_inputs  = []
-        self.xml_outputs = []
-        self.get_xml_data('inputs')
+        tree = ET.parse('EdgeDetection.xml')  # Load module xml as tree
+        self.root = tree.getroot()  # Get root node of tree
+        self.module_name = 'EdgeDetection'
 
-
-    def get_xml_data(self, field):
+    def get_xml_data(self, field, out_xml_value):
         xml_data = []
-        for child in self.xml_root:
-            print(child.tag, child.attrib)
-            # print(child.attrib)
-            if field == 'inputs' and child.attrib['name'] == 'inputs':
-                print(etree.tostring(child, pretty_print=True))
-                logging.info(etree.tostring(child, pretty_print=True))
 
+        for node in self.root:  # Iterate tree to parse necessary information
+            # print(child.tag, child.attrib)
+            if field == 'outputs' and node.attrib['name'] == 'outputs':
 
+                for output in node:
+                    output.set('value', out_xml_value)
+                    output_xml = ET.tostring(output).decode('utf-8')
+                    xml_data.append(output_xml)
 
+        return xml_data
 
     def preprocess(self, bq):
 
@@ -55,17 +56,16 @@ class PythonScriptWrapper(object):
         1. Get the resource blob (image, video, multrisprectal data, etc)
         """
         self.image = bq.load(self.options.resourceURL)
-        self.image_name=self.image.__dict__['name']
+        self.image_name = self.image.__dict__['name']
         log.info("process image as %s" % (self.image_name))
         log.info("image meta: %s" % (self.image))
-        cwd= os.getcwd()
+        cwd = os.getcwd()
         log.info("current work directory: %s" % (cwd))
-        result = fetch_blob(bq, self.options.resourceURL, dest=os.path.join(cwd,self.image_name))
+        result = fetch_blob(bq, self.options.resourceURL, dest=os.path.join(cwd, self.image_name))
 
-        
-#        if '.gz' in self.image_name:
-#            os.rename(self.image_name,self.image_name.replace('.gz',''))
-#            self.image_name=self.image_name.replace('.gz','')
+    #        if '.gz' in self.image_name:
+    #            os.rename(self.image_name,self.image_name.replace('.gz',''))
+    #            self.image_name=self.image_name.replace('.gz','')
 
     def run(self):
         """
@@ -78,57 +78,56 @@ class PythonScriptWrapper(object):
             self.preprocess(bq)
         except (Exception, ScriptError) as e:
             log.exception("Exception during preprocess")
-            bq.fail_mex(msg = "Exception during pre-process: %s" % str(e))
+            bq.fail_mex(msg="Exception during pre-process: %s" % str(e))
 
             return
 
-#        input_image, heatmap, covid, pna, normal= predict_label(log, self.image_name)
-#        heatmap=np.transpose(heatmap, (1, 2, 0))
-#        input_image=np.transpose(input_image, (1, 2, 0))
+        #        input_image, heatmap, covid, pna, normal= predict_label(log, self.image_name)
+        #        heatmap=np.transpose(heatmap, (1, 2, 0))
+        #        input_image=np.transpose(input_image, (1, 2, 0))
 
-        edge_image_path = run_edge_detector(os.path.join(os.getcwd(), self.image_name))
-#        log.info("Output image path: %s"  % s)
-        
-#        img = nib.Nifti1Image(input_image*heatmap, np.eye(4))  # Save axis for data (just identity)
-#
-#        img.header.get_xyzt_units()
-#        self.outfiles=self.image_name+'heatmap.nii'
-#        img.to_filename(self.outfiles)  # Save as NiBabel file
+        edge_image_path = run_edge_detector(os.path.join(os.getcwd(), self.image_name))  # Path to output files
+        log.info("Output image path: %s" % edge_image_path)
 
- #       z=input_image.shape[2]
- 
-        self.bqSession.update_mex( 'Returning results')
+        #        img = nib.Nifti1Image(input_image*heatmap, np.eye(4))  # Save axis for data (just identity)
+        #
+        #        img.header.get_xyzt_units()
+        #        self.outfiles=self.image_name+'heatmap.nii'
+        #        img.to_filename(self.outfiles)  # Save as NiBabel file
+
+        #       z=input_image.shape[2]
+
+        self.bqSession.update_mex('Returning results')
 
         bq.update_mex('Uploading Mask result')
-        self.resimage = self.uploadservice(bq, edge_image_path, data_type='image')
-#         log.info('Total number of slices:{}.\nNumber of slices predicted as Covid:{}.\nNumber of slices predicted as PNA: {}\nNumber of slices predicted as Normal:{}'.format(z, covid, pna, normal))
-        
-#         self.output_resources.append(out_xml)
+        self.out_image = self.uploadservice(bq, edge_image_path, data_type='image')
+        #         log.info('Total number of slices:{}.\nNumber of slices predicted as Covid:{}.\nNumber of slices predicted as PNA: {}\nNumber of slices predicted as Normal:{}'.format(z, covid, pna, normal))
 
+        #         self.output_resources.append(out_xml)
 
-        out_imgxml = """<tag name="EdgeImage" type="image" value="%s">
-                        <template>
-                          <tag name="label" value="Edge Image" />
-                        </template>
-                      </tag>""" % (str(self.resimage.get('value')))
+        outputs = self.get_xml_data('outputs', out_xml_value=(str(self.out_image.get('value'))))
 
-        
-#        out_xml = """<tag name="Metadata">
-#                    <tag name="Filename" type="string" value="%s"/>
-#                    <tag name="Depth" type="string" value="%s"/>
-#                     <tag name="Covid" type="string" value="%s"/>   
-#                     <tag name="Pneumonia" type="string" value="%s"/>
-#                     <tag name="normal" type="string" value="%s"/>
-#                     </tag>""" % (self.image_name, str(z), str(covid), str(pna), str(normal))
-        
-#        outputs = [out_imgxml, out_xml]
-        outputs = [out_imgxml]
+        # out_imgxml = """<tag name="EdgeImage" type="image" value="%s">
+        #                 <template>
+        #                   <tag name="label" value="Edge Image" />
+        #                 </template>
+        #               </tag>""" % (str(self.out_image.get('value')))
+
+        #        out_xml = """<tag name="Metadata">
+        #                    <tag name="Filename" type="string" value="%s"/>
+        #                    <tag name="Depth" type="string" value="%s"/>
+        #                     <tag name="Covid" type="string" value="%s"/>
+        #                     <tag name="Pneumonia" type="string" value="%s"/>
+        #                     <tag name="normal" type="string" value="%s"/>
+        #                     </tag>""" % (self.image_name, str(z), str(covid), str(pna), str(normal))
+
+        #        outputs = [out_imgxml, out_xml]
+        #         outputs = [out_imgxml]
         log.debug(outputs)
         # save output back to BisQue
         for output in outputs:
             self.output_resources.append(output)
-        
-        
+
     def setup(self):
         """
         Pre-run initialization
@@ -151,14 +150,13 @@ class PythonScriptWrapper(object):
             # append reference to output
             if res_type in ['table', 'image']:
                 outputTag.append(r_xml)
-                #etree.SubElement(outputTag, 'tag', name='output_table' if res_type=='table' else 'output_image', type=res_type, value=r_xml.get('uri',''))
+                # etree.SubElement(outputTag, 'tag', name='output_table' if res_type=='table' else 'output_image', type=res_type, value=r_xml.get('uri',''))
             else:
                 outputTag.append(r_xml)
-                #etree.SubElement(outputTag, r_xml.tag, name=r_xml.get('name', '_'), type=r_xml.get('type', 'string'), value=r_xml.get('value', ''))
+                # etree.SubElement(outputTag, r_xml.tag, name=r_xml.get('name', '_'), type=r_xml.get('type', 'string'), value=r_xml.get('value', ''))
         log.debug('Output Mex results: %s' %
                   (etree.tostring(outputTag, pretty_print=True)))
         self.bqSession.finish_mex(tags=[outputTag])
-    
 
     def mex_parameter_parser(self, mex_xml):
         """
@@ -167,13 +165,14 @@ class PythonScriptWrapper(object):
             @param: mex_xml
         """
         # inputs are all non-"script_params" under "inputs" and all params under "script_params"
-        mex_inputs = mex_xml.xpath('tag[@name="inputs"]/tag[@name!="script_params"] | tag[@name="inputs"]/tag[@name="script_params"]/tag')
+        mex_inputs = mex_xml.xpath(
+            'tag[@name="inputs"]/tag[@name!="script_params"] | tag[@name="inputs"]/tag[@name="script_params"]/tag')
         if mex_inputs:
             for tag in mex_inputs:
-                if tag.tag == 'tag' and tag.get('type', '') != 'system-input': #skip system input values
-                    if not getattr(self.options,tag.get('name', ''), None):
-                        log.debug('Set options with %s as %s'%(tag.get('name',''),tag.get('value','')))
-                        setattr(self.options,tag.get('name',''),tag.get('value',''))
+                if tag.tag == 'tag' and tag.get('type', '') != 'system-input':  # skip system input values
+                    if not getattr(self.options, tag.get('name', ''), None):
+                        log.debug('Set options with %s as %s' % (tag.get('name', ''), tag.get('value', '')))
+                        setattr(self.options, tag.get('name', ''), tag.get('value', ''))
         else:
             log.debug('No Inputs Found on MEX!')
 
@@ -186,7 +185,7 @@ class PythonScriptWrapper(object):
         log.info('Up Mex: %s' % (mex_id))
         log.info('Up File: %s' % (filename))
         resource = etree.Element(
-            'image', name='ModuleExecutions/EdgeDetection/'+filename)
+            'image', name='ModuleExecutions/EdgeDetection/' + filename)
         t = etree.SubElement(resource, 'tag', name="datetime", value='time')
         log.info('Creating upload xml data: %s ' %
                  str(etree.tostring(resource, pretty_print=True)))
@@ -207,17 +206,16 @@ class PythonScriptWrapper(object):
 
         return resource
 
-
     def uploadservice(self, bq, filename, data_type='image'):
         """
-        Upload mask to image_service upon post process
+        Upload resource to image_service upon post process
         """
         mex_id = bq.mex.uri.split('/')[-1]
 
         log.info('Up Mex: %s' % (mex_id))
         log.info('Up File: %s' % (filename))
         resource = etree.Element(
-            data_type, name='ModuleExecutions/'+'EdgeDetection'+'/'+filename)
+            data_type, name='ModuleExecutions/' + self.module_name + '/' + filename)
         t = etree.SubElement(resource, 'tag', name="datetime", value='time')
         log.info('Creating upload xml data: %s ' %
                  str(etree.tostring(resource, pretty_print=True)))
@@ -237,8 +235,7 @@ class PythonScriptWrapper(object):
             resource.set('value', self.furl)
 
         return resource
-            
-            
+
     def validate_input(self):
         """
             Check to see if a mex with token or user with password was provided.
@@ -246,47 +243,42 @@ class PythonScriptWrapper(object):
             @return True is returned if validation credention was provided else
             False is returned
         """
-        if (self.options.mexURL and self.options.token): #run module through engine service
+        if (self.options.mexURL and self.options.token):  # run module through engine service
             return True
-        if (self.options.user and self.options.pwd and self.options.root): #run module locally (note: to test module)
+        if (self.options.user and self.options.pwd and self.options.root):  # run module locally (note: to test module)
             return True
         log.debug('Insufficient options or arguments to start this module')
         return False
 
-
-
     def main(self):
         parser = optparse.OptionParser()
-        parser.add_option('--mex_url'         , dest="mexURL")
-        parser.add_option('--module_dir'      , dest="modulePath")
-        parser.add_option('--staging_path'    , dest="stagingPath")
-        parser.add_option('--bisque_token'    , dest="token")
-        parser.add_option('--user'            , dest="user")
-        parser.add_option('--pwd'             , dest="pwd")
-        parser.add_option('--root'            , dest="root")
-        parser.add_option('--resource_url'    , dest="resourceURL")
-        
-            
+        parser.add_option('--mex_url', dest="mexURL")
+        parser.add_option('--module_dir', dest="modulePath")
+        parser.add_option('--staging_path', dest="stagingPath")
+        parser.add_option('--bisque_token', dest="token")
+        parser.add_option('--user', dest="user")
+        parser.add_option('--pwd', dest="pwd")
+        parser.add_option('--root', dest="root")
+        parser.add_option('--resource_url', dest="resourceURL")
+
         (options, args) = parser.parse_args()
 
-        
         fh = logging.FileHandler('scriptrun.log', mode='a')
         fh.setLevel(logging.DEBUG)
         formatter = logging.Formatter('[%(asctime)s] %(levelname)8s --- %(message)s ' +
-                                  '(%(filename)s:%(lineno)s)',datefmt='%Y-%m-%d %H:%M:%S')
+                                      '(%(filename)s:%(lineno)s)', datefmt='%Y-%m-%d %H:%M:%S')
         fh.setFormatter(formatter)
         log.addHandler(fh)
-        
 
-        try: #pull out the mex
+        try:  # pull out the mex
 
             if not options.resourceURL:
-                options.resourceURL=sys.argv[1]
+                options.resourceURL = sys.argv[1]
             if not options.mexURL:
                 options.mexURL = sys.argv[2]
             if not options.token:
                 options.token = sys.argv[3]
-        except IndexError: #no argv were set
+        except IndexError:  # no argv were set
             pass
 
         if not options.stagingPath:
@@ -297,17 +289,18 @@ class PythonScriptWrapper(object):
 
         if self.validate_input():
 
-             #initalizes if user and password are provided
+            # initalizes if user and password are provided
             if (self.options.user and self.options.pwd and self.options.root):
 
                 try:
-                    self.bqSession = BQSession().init_local( self.options.user, self.options.pwd, bisque_root=self.options.root)
+                    self.bqSession = BQSession().init_local(self.options.user, self.options.pwd,
+                                                            bisque_root=self.options.root)
                     self.options.mexURL = self.bqSession.mex.uri
 
                 except:
                     return
 
-             #initalizes if mex and mex token is provided
+            # initalizes if mex and mex token is provided
             elif (self.options.mexURL and self.options.token):
 
                 try:
@@ -324,25 +317,26 @@ class PythonScriptWrapper(object):
                 self.setup()
             except Exception as e:
                 log.exception("Exception during setup")
-                self.bqSession.fail_mex(msg = "Exception during setup: %s" %  str(e))
+                self.bqSession.fail_mex(msg="Exception during setup: %s" % str(e))
                 return
-####
+            ####
             try:
                 self.run()
             except (Exception, ScriptError) as e:
                 log.exception("Exception during run")
-                self.bqSession.fail_mex(msg = "Exception during run: %s" % str(e))
+                self.bqSession.fail_mex(msg="Exception during run: %s" % str(e))
                 return
-##
-            try:                
+            ##
+            try:
                 self.teardown()
             except (Exception, ScriptError) as e:
                 log.exception("Exception during teardown")
-                self.bqSession.fail_mex(msg = "Exception during teardown: %s" %  str(e))
+                self.bqSession.fail_mex(msg="Exception during teardown: %s" % str(e))
                 return
-        
+
             self.bqSession.close()
         log.debug('Session Close')
-        
-if __name__=="__main__":
+
+
+if __name__ == "__main__":
     PythonScriptWrapper().main()
