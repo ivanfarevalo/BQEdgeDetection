@@ -16,8 +16,7 @@ from bqapi.comm import BQCommError
 from bqapi.comm import BQSession
 from bqapi.util import fetch_blob
 
-# from predict import predict_label
-
+# standardized naming convention for running modules.
 from src.BQ_run_module import run_module
 
 
@@ -31,16 +30,33 @@ class ScriptError(Exception):
 
 class PythonScriptWrapper(object):
     def __init__(self):
-        tree = ET.parse('EdgeDetection.xml')  # Load module xml as tree
-        self.root = tree.getroot()  # Get root node of tree
-        self.module_name = 'EdgeDetection'
+        for file in os.listdir(): # Might change it to read parameters from .JSON
+            if file.endswith(".xml"):
+                # Get xml file name as module name
+                if hasattr(self, 'module_name'):
+                    raise ScriptError('More than 1 .xml file present in directory, make appropiate changes and rebuild image')
+                else:
+                    self.module_name = file[:-4]
 
-    def get_xml_data(self, field, out_xml_value):
+        tree = ET.parse(self.module_name+'.xml')  # Load module xml as tree
+        self.root = tree.getroot()  # Get root node of tree
+
+
+    # For very simple, image in image out case, will extend to more input/output cases.
+    def get_xml_data(self, field, out_xml_value='Default', bq=None):
         xml_data = []
 
         for node in self.root:  # Iterate tree to parse necessary information
             # print(child.tag, child.attrib)
-            if field == 'outputs' and node.attrib['name'] == 'outputs':
+            if field == 'inputs' and node.attrib['name'] == 'inputs':
+
+                for input in node:
+                    resource_ulr = bq.load(self.options.resourceURL)
+                    resource_name = resource_ulr.__dict__['name']
+                    resource_dict = {'resource_url': resource_ulr, 'resource_name':resource_name}
+                    xml_data.append(resource_dict)
+
+            elif field == 'outputs' and node.attrib['name'] == 'outputs':
 
                 for output in node:
                     output.set('value', out_xml_value)
@@ -53,15 +69,22 @@ class PythonScriptWrapper(object):
 
         log.info('Options: %s' % (self.options))
         """
-        1. Get the resource blob (image, video, multrisprectal data, etc)
+        1. Get the input resource blobs
         """
-        self.image = bq.load(self.options.resourceURL)
-        self.image_name = self.image.__dict__['name']
-        log.info("process image as %s" % (self.image_name))
-        log.info("image meta: %s" % (self.image))
-        cwd = os.getcwd()
-        log.info("current work directory: %s" % (cwd))
-        result = fetch_blob(bq, self.options.resourceURL, dest=os.path.join(cwd, self.image_name))
+
+        # self.image = bq.load(self.options.resourceURL)
+        # self.image_name = self.image.__dict__['name']
+
+        self.inputs = self.get_xml_data('inputs',  bq=bq)
+
+        for input in self.inputs:
+
+            log.info("Process resource as %s" % (input['resource_name']))
+            log.info("Resource meta: %s" % (input['resource_url']))
+            cwd = os.getcwd()
+            log.info("Current work directory: %s" % (cwd))
+            result = fetch_blob(bq, self.options.resourceURL, dest=os.path.join(cwd, input['resource_name']))
+            log.info(f"Output of fetch blob in line 87 is : {result}")
 
     #        if '.gz' in self.image_name:
     #            os.rename(self.image_name,self.image_name.replace('.gz',''))
@@ -86,7 +109,7 @@ class PythonScriptWrapper(object):
         #        heatmap=np.transpose(heatmap, (1, 2, 0))
         #        input_image=np.transpose(input_image, (1, 2, 0))
 
-        out_data_path = run_module(os.path.join(os.getcwd(), self.image_name))  # Path to output files
+        out_data_path = run_module(os.path.join(os.getcwd(), self.inputs[0]['resource_name']))  # Path to output files HARDCODED FOR NOW
         log.info("Output image path: %s" % out_data_path)
 
         #        img = nib.Nifti1Image(input_image*heatmap, np.eye(4))  # Save axis for data (just identity)
@@ -105,7 +128,7 @@ class PythonScriptWrapper(object):
 
         #         self.output_resources.append(out_xml)
 
-        outputs = self.get_xml_data('outputs', out_xml_value=(str(self.out_image.get('value'))))
+        self.output_resources = self.get_xml_data('outputs', out_xml_value=(str(self.out_image.get('value'))))
 
         # out_imgxml = """<tag name="EdgeImage" type="image" value="%s">
         #                 <template>
@@ -123,10 +146,10 @@ class PythonScriptWrapper(object):
 
         #        outputs = [out_imgxml, out_xml]
         #         outputs = [out_imgxml]
-        log.debug(outputs)
+        log.debug(self.output_resources)
         # save output back to BisQue
-        for output in outputs:
-            self.output_resources.append(output)
+        # for output in outputs:
+        #     self.output_resources.append(output)
 
     def setup(self):
         """
@@ -136,7 +159,7 @@ class PythonScriptWrapper(object):
         self.mex_parameter_parser(self.bqSession.mex.xmltree)
         self.output_resources = []
 
-    def tear_down(self):
+    def tear_down(self):  # NEED TO GENERALIZE
         """
         Post the results to the mex xml
         """
