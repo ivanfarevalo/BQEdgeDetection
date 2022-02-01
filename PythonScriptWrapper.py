@@ -42,7 +42,7 @@ class PythonScriptWrapper(object):
         self.root = tree.getroot()  # Get root node of tree
 
 
-    # For very simple, image in image out case, will extend to more input/output cases.
+    # For very simple, image in image out case.  Will extend to more input/output cases.
     def get_xml_data(self, field, out_xml_value='Default', bq=None):
         xml_data = []
 
@@ -51,10 +51,11 @@ class PythonScriptWrapper(object):
             if field == 'inputs' and node.attrib['name'] == 'inputs':
 
                 for input in node:
-                    resource_ulr = bq.load(self.options.resourceURL)
-                    resource_name = resource_ulr.__dict__['name']
-                    resource_dict = {'resource_url': resource_ulr, 'resource_name':resource_name}
-                    xml_data.append(resource_dict)
+                    if input.attrib['name'] == 'resource_url':
+                        resource_ulr = bq.load(self.options.resourceURL)
+                        resource_name = resource_ulr.__dict__['name']
+                        resource_dict = {'resource_url': resource_ulr, 'resource_name':resource_name}
+                        xml_data.append(resource_dict)
 
             elif field == 'outputs' and node.attrib['name'] == 'outputs':
 
