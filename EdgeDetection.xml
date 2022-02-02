@@ -17,7 +17,7 @@
          
      <tag name="outputs">
               
-          <tag name="EdgeImage" type="image">
+          <tag name="OutImage" type="image">
                <template>
                     <tag name="label" value="Edge Image"/>
                </template>
@@ -56,5 +56,5 @@
          
      <tag name="authors" type="string" value="Ivan"/>
          
-     <tag name="description" type="string" value="Edge detector"/>
+     <tag name="description" type="string" value="This module finds edges of images"/>
 </module>

@@ -63,7 +63,7 @@ class PythonScriptWrapper(object):
                     output.set('value', out_xml_value)
                     output_xml = ET.tostring(output).decode('utf-8')
                     xml_data.append(output_xml)
-
+        log.info(f" xml data for {field} from wrapper is {xml_data}")
         return xml_data
 
     def pre_process(self, bq):
